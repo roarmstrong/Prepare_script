@@ -5,7 +5,6 @@ from pathlib import Path
 import os
 from osgeo import osr
 import dateutil
-from ruamel.yaml import YAML
 from dateutil import parser
 from datetime import timedelta
 import uuid
@@ -17,7 +16,7 @@ import boto3
 import datacube
 from datacube.scripts.dataset import create_dataset, parse_match_rules_options
 from datacube.utils import changes
-
+from ruamel.yaml import YAML
 
 def format_obj_key(obj_key):
     obj_key ='/'.join(obj_key.split("/")[:-1])
@@ -33,7 +32,7 @@ def get_metadata_docs(bucket_name):
     s3 = boto3.resource('s3')
     bucket = s3.Bucket(bucket_name)
     logging.info("Bucket : %s", bucket_name)
-    for obj in bucket.objects.filter(Prefix = 'S2-Sample-Products'):
+    for obj in bucket.objects.filter(Prefix = 'S2-Sample-Products/Alpha'):
         if obj.key.endswith('ARD-METADATA-S3.yaml'):
             obj_key = obj.key
             logging.info("Processing %s", obj_key)
@@ -41,9 +40,6 @@ def get_metadata_docs(bucket_name):
             yaml = YAML(typ='safe',pure = True)
             yaml.default_flow_style = False
             data = yaml.load(raw_string)
-            #mtl_doc = _parse_group(iter(raw_string.split("\n")))['L1_METADATA_FILE']
-            #metadata_doc = make_metadata_doc(mtl_doc, bucket_name, obj_key)
-            #yield obj_key, metadata_doc
             yield obj_key,data
             
             
