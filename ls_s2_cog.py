@@ -28,12 +28,12 @@ def get_s3_url(bucket_name, obj_key):
         bucket_name=bucket_name, obj_key=obj_key)
 
 
-def get_metadata_docs(bucket_name):
+def get_metadata_docs(bucket_name, prefix):
     s3 = boto3.resource('s3')
     bucket = s3.Bucket(bucket_name)
     logging.info("Bucket : %s", bucket_name)
-    for obj in bucket.objects.filter(Prefix = 'S2-Sample-Products/Alpha'):
-        if obj.key.endswith('ARD-METADATA-S3.yaml'):
+    for obj in bucket.objects.filter(Prefix = str(prefix)):
+        if obj.key.endswith('S3.yaml'):
             obj_key = obj.key
             logging.info("Processing %s", obj_key)
             raw_string = obj.get()['Body'].read().decode('utf8')
@@ -59,12 +59,12 @@ def add_dataset(doc, uri, rules, index):
         index.datasets.update(dataset, {tuple(): changes.allow_any})
     return uri
 
-def add_datacube_dataset(bucket_name,config):
+def add_datacube_dataset(bucket_name,config, prefix):
     dc=datacube.Datacube(config=config)
     index = dc.index
     rules = make_rules(index)
     
-    for metadata_path,metadata_doc in get_metadata_docs(bucket_name):
+    for metadata_path,metadata_doc in get_metadata_docs(bucket_name, prefix):
         uri= get_s3_url(bucket_name, metadata_path)
         add_dataset(metadata_doc, uri, rules, index)
         logging.info("Indexing %s", metadata_path)
@@ -74,10 +74,10 @@ def add_datacube_dataset(bucket_name,config):
 @click.argument('bucket_name')
 @click.option('--config','-c',help=" Pass the configuration file to access the database",
 		type=click.Path(exists=True))
-def main(bucket_name, config):
+@click.option('--prefix', '-p', help="Pass the prefix of the object to the bucket")
+def main(bucket_name, config, prefix):
     logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', level=logging.INFO)
-    add_datacube_dataset(bucket_name,config)
-    #get_metadata_docs(bucket_name)
+    add_datacube_dataset(bucket_name, config, prefix)
    
     
 if __name__ == "__main__":
