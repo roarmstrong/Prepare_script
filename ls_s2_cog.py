@@ -33,7 +33,7 @@ def get_metadata_docs(bucket_name, prefix):
     bucket = s3.Bucket(bucket_name)
     logging.info("Bucket : %s", bucket_name)
     for obj in bucket.objects.filter(Prefix = str(prefix)):
-        if obj.key.endswith('S3.yaml'):
+        if obj.key.endswith('.yaml'):
             obj_key = obj.key
             logging.info("Processing %s", obj_key)
             raw_string = obj.get()['Body'].read().decode('utf8')
