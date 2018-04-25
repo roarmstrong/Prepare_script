@@ -37,7 +37,7 @@ def get_metadata_docs(bucket_name, prefix):
             obj_key = obj.key
             logging.info("Processing %s", obj_key)
             raw_string = obj.get()['Body'].read().decode('utf8')
-            yaml = YAML(typ='safe',pure = True)
+            yaml = YAML(typ='safe', pure = True)
             yaml.default_flow_style = False
             data = yaml.load(raw_string)
             yield obj_key,data
@@ -50,6 +50,20 @@ def make_rules(index):
     return rules
 
 
+def archive_dataset(doc, uri, rules, index):
+    def get_ids(dataset):
+        ds = index.datasets.get(dataset.id, include_sources=True)
+        for source in ds.sources.values():
+            yield source.id
+        yield dataset.id
+
+
+    dataset = create_dataset(doc, uri, rules)
+    print("Archiving:")
+    index.datasets.archive(get_ids(dataset))
+    logging.info("Archiving %s and all sources of %s", dataset.id, dataset.id)
+
+
 def add_dataset(doc, uri, rules, index):
     dataset = create_dataset(doc, uri, rules)
 
@@ -57,17 +71,20 @@ def add_dataset(doc, uri, rules, index):
         index.datasets.add(dataset) # Source policy to be checked in sentinel 2 datase types 
     except changes.DocumentMismatchError as e:
         index.datasets.update(dataset, {tuple(): changes.allow_any})
+
+    logging.info("Indexing %s", uri)
     return uri
 
-def add_datacube_dataset(bucket_name,config, prefix):
+
+def iterate_datasets(bucket_name, config, prefix, func):
     dc=datacube.Datacube(config=config)
     index = dc.index
     rules = make_rules(index)
     
     for metadata_path,metadata_doc in get_metadata_docs(bucket_name, prefix):
         uri= get_s3_url(bucket_name, metadata_path)
-        add_dataset(metadata_doc, uri, rules, index)
-        logging.info("Indexing %s", metadata_path)
+        func(metadata_doc, uri, rules, index)
+
 
 
 @click.command(help= "Enter Bucket name. Optional to enter configuration file to access a different database")
@@ -75,11 +92,13 @@ def add_datacube_dataset(bucket_name,config, prefix):
 @click.option('--config','-c',help=" Pass the configuration file to access the database",
 		type=click.Path(exists=True))
 @click.option('--prefix', '-p', help="Pass the prefix of the object to the bucket")
-def main(bucket_name, config, prefix):
+@click.option('--archive', is_flag=True, help="If true, datasets found in the specified bucket and prefix will be archived")
+def main(bucket_name, config, prefix, archive):
     logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', level=logging.INFO)
-    add_datacube_dataset(bucket_name, config, prefix)
+    action = archive_dataset if archive else add_dataset
+    iterate_datasets(bucket_name, config, prefix, action)
    
-    
+
 if __name__ == "__main__":
     main()
 
