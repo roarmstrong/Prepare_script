@@ -28,12 +28,12 @@ def get_s3_url(bucket_name, obj_key):
         bucket_name=bucket_name, obj_key=obj_key)
 
 
-def get_metadata_docs(bucket_name, prefix):
+def get_metadata_docs(bucket_name, prefix, suffix):
     s3 = boto3.resource('s3')
     bucket = s3.Bucket(bucket_name)
     logging.info("Bucket : %s", bucket_name)
     for obj in bucket.objects.filter(Prefix = str(prefix)):
-        if obj.key.endswith('S3.yaml'):
+        if obj.key.endswith(suffix):
             obj_key = obj.key
             logging.info("Processing %s", obj_key)
             raw_string = obj.get()['Body'].read().decode('utf8')
@@ -41,7 +41,6 @@ def get_metadata_docs(bucket_name, prefix):
             yaml.default_flow_style = False
             data = yaml.load(raw_string)
             yield obj_key,data
-            
             
             
 def make_rules(index):
@@ -76,15 +75,14 @@ def add_dataset(doc, uri, rules, index):
     return uri
 
 
-def iterate_datasets(bucket_name, config, prefix, func):
+def iterate_datasets(bucket_name, config, prefix, suffix, func):
     dc=datacube.Datacube(config=config)
     index = dc.index
     rules = make_rules(index)
     
-    for metadata_path,metadata_doc in get_metadata_docs(bucket_name, prefix):
+    for metadata_path,metadata_doc in get_metadata_docs(bucket_name, prefix, suffix):
         uri= get_s3_url(bucket_name, metadata_path)
         func(metadata_doc, uri, rules, index)
-
 
 
 @click.command(help= "Enter Bucket name. Optional to enter configuration file to access a different database")
@@ -92,11 +90,12 @@ def iterate_datasets(bucket_name, config, prefix, func):
 @click.option('--config','-c',help=" Pass the configuration file to access the database",
 		type=click.Path(exists=True))
 @click.option('--prefix', '-p', help="Pass the prefix of the object to the bucket")
+@click.option('--suffix', '-s', default="S3.yaml", help="Defines the suffix of the metadata_docs that will be used to load datasets")
 @click.option('--archive', is_flag=True, help="If true, datasets found in the specified bucket and prefix will be archived")
-def main(bucket_name, config, prefix, archive):
+def main(bucket_name, config, prefix, suffix, archive):
     logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s', level=logging.INFO)
     action = archive_dataset if archive else add_dataset
-    iterate_datasets(bucket_name, config, prefix, action)
+    iterate_datasets(bucket_name, config, prefix, suffix, action)
    
 
 if __name__ == "__main__":
